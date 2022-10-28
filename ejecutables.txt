@@ -1,0 +1,82 @@
+1.haproxy funcionando
+consul agent -ui -client=0.0.0.0 -server -bootstrap-expect=1 -data-dir=/tmp/consul -node=agent-one -bind=192.168.90.2 -enable-script-checks=true -config-dir=/etc/consul.d
+
+1.1 validar en navegador de host
+http://192.168.90.2:8500/ui/dc1/services
+
+
+2.esclavo funcionando
+
+
+consul agent -data-dir=/tmp/consul -node=agent-two -bind=192.168.90.3 -enable-script-checks=true -config-dir=/etc/consul.d
+
+
+3. validar en el haproxy con la ip de esclavo agente 2
+
+consul join 192.168.90.3
+4.
+desplegar  microservicios en las maquinas
+
+cd /consulService/app
+
+node index.js 3000 
+
+
+5. en haproxy
+cd /etc/haproxy/
+
+sudo vim haproxy.cfg
+
+a
+
+frontend stats
+   bind *:1936
+   mode http
+   stats uri /
+   stats show-legends
+   no log
+
+frontend http_front
+   bind *:80
+   default_backend http_back
+
+backend http_back
+    balance roundrobin
+    server-template mywebapp 1-10 _mymicroservice._tcp.service.consul resolvers consul    resolve-opts allow-dup-ip resolve-prefer ipv4 check
+
+resolvers consul
+    nameserver consul 127.0.0.1:8600
+    accepted_payload_size 8192
+    hold valid 5s
+
+
+6  sudo service haproxy reload
+
+7 en el navegador host para ver estadisticas
+http://192.168.90.2:1936/
+
+8 en otra ventana para ver el balanceo 
+http://192.168.90.2/
+
+
+9. desde el host shell 
+artillery quick --count 10 -n 20 http://192.168.90.2/
+
+    La opción “contar” le permite crear un cierto número de “usuarios virtuales” diez, 
+    en nuestro ejemplo. Con la opción “-n” definimos el número de solicitudes que está enviando cada usuario virtual. 
+    Entonces, tendremos diez usuarios virtuales, enviando 20 solicitudes HTTP GET a la URL especificada
+
+
+9.1 ejecuta script  
+artillery run -e staging my-script.yml
+
+10.mensaje cuand el servisio no esta disponible
+
+sudo vim /etc/haproxy/errors/503.http
+
+
+<p><img src="https://media2.giphy.com/media/3oz8xyB3C126ZDDAuk/giphy.gif?cid=ecf05e47iovasw1drxq1vxnq13fs8im7zw2j72ociizzvr9h&rid=giphy.gif&ct=g" /></p>
+
+sudo service haproxy reload
+
+sudo service haproxy status
